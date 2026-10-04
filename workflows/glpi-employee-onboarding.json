@@ -1,0 +1,276 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 3
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -272,
+        128
+      ],
+      "id": "c967d65f-c721-4045-ac90-d07317f2d906",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "url": "https://xxxxxxxxxxxxxxxxxxxx/apirest.php/initSession?user_token=xxxxxxxxxxxxxxxxxxxx",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "App-Token",
+              "value": "xxxxxxxxxxxxxxxxxxxx"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        496,
+        128
+      ],
+      "id": "37ad1327-40fe-4b54-98d6-c815fdcc630e",
+      "name": "GLPI Sup - Iniciar Sessão"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xxxxxxxxxxxxxxxxxxxx/apirest.php/Ticket",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "App-Token",
+              "value": "xxxxxxxxxxxxxxxxxxxx"
+            },
+            {
+              "name": "Session-Token",
+              "value": "={{ $json.session_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"input\": {\n    \"name\": \"Cadastrar novos acessos.\",\n    \"content\": {{ JSON.stringify($('Gera Conteúdo Chamado').item.json.output?.[0]?.content?.[0]?.text || 'Solicitação sem descrição informada.') }},\n    \"entities_id\": 9999,\n    \"type\": 2,\n    \"status\": 1,\n    \"_users_id_requester\": 9999,\n    \"itilcategories_id\": 9999,\n    \"slas_id_ttr\": 9999,\n    \"urgency\": 3,\n    \"impact\": 3,\n    \"priority\": 3,\n    \"requesttypes_id\": 9999\n  }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        704,
+        128
+      ],
+      "id": "34eda02a-622a-44f5-90c8-04743311dc68",
+      "name": "GLPI Sup - Abre Chamado"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE glpi_tickets\n  SET notifica_glpi_ti = 1 \n  WHERE id = {{ $('Consulta Chamados Admissão (RH)').item.json.id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1120,
+        128
+      ],
+      "id": "83e71306-47e2-4525-bc04-1fb8fd30a0bc",
+      "name": "Update notificados (RH)",
+      "credentials": {
+        "mySql": {
+          "id": "xxxxxxxxxxxxxxxxxxxx",
+          "name": "MySQL GLPI RH"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT \n  id,\n  content\nFROM\n  glpi_tickets\nWHERE\n  itilcategories_id = 9999\n  AND notifica_glpi_ti = 0\n  AND status in (5,6)\n  \n\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        -48,
+        128
+      ],
+      "id": "bfe46e91-881c-4352-acdf-15b153d5d74c",
+      "name": "Consulta Chamados Admissão (RH)",
+      "credentials": {
+        "mySql": {
+          "id": "xxxxxxxxxxxxxxxxxxxx",
+          "name": "MySQL GLPI RH"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-6-luna",
+          "mode": "list",
+          "cachedResultName": "GPT-6-LUNA"
+        },
+        "responses": {
+          "values": [
+            {
+              "role": "system",
+              "content": "=Você receberá o conteúdo de um formulário de cadastro de admissão em HTML, texto ou JSON.\n\nSua tarefa é ler o conteúdo recebido, identificar todos os campos existentes no formulário e montar uma descrição clara para abertura de chamado de criação de acessos.\n\nImportante:\nO formulário pode mudar com o tempo. Campos podem ser adicionados, removidos ou renomeados por outro setor. Portanto, não dependa de uma lista fixa de campos.\n\nRegras:\n- Extraia todos os campos que encontrar no formulário.\n- Preserve o nome original do campo sempre que possível.\n- Organize as informações em um texto claro para abertura de chamado.\n- Priorize informações relacionadas ao colaborador, empresa, setor, gestor, cargo, CPF, telefone, data de admissão, prazo de documentação, substituição, salário e observações, quando existirem.\n- Se aparecerem campos novos que não estão nessa lista, inclua também no chamado.\n- Se algum campo não existir ou estiver vazio, não inclua esse campo na resposta.\n- Não invente informações.\n- Não preencha campos ausentes com \"não informado\".\n- Remova tags HTML e caracteres como &lt;, &gt;, &#60;, &#62;, &nbsp;.\n- Corrija apenas a limpeza do texto, sem alterar o significado dos dados.\n- Retorne somente o texto final do chamado, sem explicações, sem JSON e sem markdown.\n\nFormato sugerido:\n\nSolicitação de criação de acessos\n\nColaborador: [nome do colaborador/candidato, se existir]\nEmpresa: [empresa, se existir]\nCentro de Custo/Setor: [centro de custo/setor, se existir]\nGestor Responsável: [gestor, se existir]\nCargo: [cargo, se existir]\nCPF: [cpf, se existir]\nTelefone: [telefone, se existir]\nData de Admissão: [data, se existir]\nPrazo Documentação: [prazo, se existir]\nSubstituição de: [substituição, se existir]\nSalário: [salário, se existir]\nObservações: [observações, se existir]\n\nOutros campos encontrados:\n[Inclua aqui qualquer campo novo que exista no formulário e que não se encaixe nos campos acima.]\n\nConteúdo do formulário:\n{{ $json.content }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.3,
+      "position": [
+        160,
+        128
+      ],
+      "id": "f235155b-5394-43af-87d1-f2720fec2d6b",
+      "name": "Gera Conteúdo Chamado",
+      "credentials": {
+        "openAiApi": {
+          "id": "xxxxxxxxxxxxxxxxxxxx",
+          "name": "OpenAI API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://xxxxxxxxxxxxxxxxxxxx/message/sendText/xxxxxxxxxxxxxxxxxxxx",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "xxxxxxxxxxxxxxxxxxxx"
+            },
+            {
+              "name": "text",
+              "value": "=={{\n  'Chamado: ' +\n  $('GLPI Sup - Abre Chamado').all()[$itemIndex].json.id +\n  '\\n' +\n  $('Gera Conteúdo Chamado').all()[$itemIndex].json.output[0].content[0].text\n}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        912,
+        128
+      ],
+      "id": "074e7815-80c7-4c9c-88d3-f31c7229906e",
+      "name": "Envia Zap pra um grupo específico",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "xxxxxxxxxxxxxxxxxxxx",
+          "name": "WhatsApp API"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Consulta Chamados Admissão (RH)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GLPI Sup - Iniciar Sessão": {
+      "main": [
+        [
+          {
+            "node": "GLPI Sup - Abre Chamado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "GLPI Sup - Abre Chamado": {
+      "main": [
+        [
+          {
+            "node": "Envia Zap pra um grupo específico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update notificados (RH)": {
+      "main": [
+        []
+      ]
+    },
+    "Consulta Chamados Admissão (RH)": {
+      "main": [
+        [
+          {
+            "node": "Gera Conteúdo Chamado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gera Conteúdo Chamado": {
+      "main": [
+        [
+          {
+            "node": "GLPI Sup - Iniciar Sessão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Envia Zap pra um grupo específico": {
+      "main": [
+        [
+          {
+            "node": "Update notificados (RH)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "xxxxxxxxxxxxxxxxxxxx"
+  }
+}
